@@ -195,7 +195,9 @@ final class MetalRenderer: NSObject, MTKViewDelegate {
         command.present(drawable)
         encodeSpotlight(command: command, mesh: slot.mesh, uniforms: uniforms)
         let semaphore = inFlight
-        command.addCompletedHandler { [weak self] completed in
+        // Metal calls this on its own completion queue. @Sendable keeps the closure from
+        // inheriting @MainActor isolation (Swift 6.1 would otherwise trap on that queue).
+        command.addCompletedHandler { @Sendable [weak self] completed in
             semaphore.signal()
             if completed.status == .error {
                 Task { @MainActor in self?.onFailure?() }
