@@ -115,7 +115,13 @@ public final class SnowDrift {
         return remaining
     }
 
-    func settle() {
+    /// Relaxes the pile toward level. `dt` scales the transfer so it can run every frame
+    /// (smooth motion) with the same overall speed as the former fixed 0.1 s step.
+    /// Returns the largest single transfer, so callers know whether the pile is visibly moving.
+    @discardableResult
+    func settle(dt: Float = 0.1, tilt: Float = 0) -> Float {
+        let rate = dt.isFinite ? max(0, min(0.24, 1.2 * dt)) : 0.12
+        var moved: Float = 0
         // Pairwise transfers preserve volume, including when adjacent samples are full.
         for i in heights.indices { scratch[i] = heights[i] }
         for i in 0..<(heights.count - 1) {
@@ -123,12 +129,69 @@ public final class SnowDrift {
                   surface.isExposed(at: Float(i + 1) * spacing) else { continue }
             // A tilted support's base drop drives snow toward its lower end until the cap is level.
             // ponytail: no angle of repose and no spill off the low end; full low-end samples just stop.
-            let flux = (heights[i] - heights[i + 1] + surface.slope * spacing) * 0.12
+            // `tilt` is the laptop's sideways tilt: it leans every pile toward the lower side.
+            let flux = (heights[i] - heights[i + 1] + (surface.slope + tilt) * spacing) * rate
             let from = flux > 0 ? i : i + 1
             let to = flux > 0 ? i + 1 : i
             let transfer = min(abs(flux), min(scratch[from], max(0, capacities[to] - scratch[to])))
             scratch[from] -= transfer
             scratch[to] += transfer
+            moved = max(moved, transfer)
+        }
+        swap(&heights, &scratch)
+        return moved
+    }
+
+    /// Shaking knocks a share of the cap off its nearer end (`side` −1…1 biases which end).
+    /// Reports at most one spill per end: (local x, height, area). Returns true when snow moved.
+    @discardableResult
+    func shed(fraction: Float, side: Float, spill: (Float, Float, Float) -> Void) -> Bool {
+        guard fraction.isFinite, fraction > 0, spacing > 0, surface.width > 0 else { return false }
+        let share = min(1, fraction)
+        let bias = side.isFinite ? max(-1, min(1, side)) * 0.3 : 0
+        var leftArea: Float = 0, rightArea: Float = 0
+        var leftHeight: Float = 0, rightHeight: Float = 0
+        for i in heights.indices where heights[i] > 0.0001 {
+            let amount = heights[i] * share
+            heights[i] -= amount
+            if Float(i) * spacing / surface.width + bias >= 0.5 {
+                rightArea += amount * spacing
+                rightHeight = max(rightHeight, amount)
+            } else {
+                leftArea += amount * spacing
+                leftHeight = max(leftHeight, amount)
+            }
+        }
+        if leftArea > 0.0001 { spill(-spacing, max(leftHeight, 0.5), leftArea) }
+        if rightArea > 0.0001 { spill(surface.width + spacing, max(rightHeight, 0.5), rightArea) }
+        return leftArea + rightArea > 0.0001
+    }
+
+    /// Inertia while the support is dragged quickly: the cap slides `shift` points along the
+    /// support (opposite to the drag). Material pushed past either end, or beyond a sample's
+    /// capacity, is handed to `spill` (local x, column height, area) so it can fall freely.
+    func slide(by shift: Float, spill: (Float, Float, Float) -> Void) {
+        guard shift.isFinite, abs(shift) > 0.01, spacing > 0, heights.count >= 2 else { return }
+        for i in heights.indices { scratch[i] = 0 }
+        for i in heights.indices where heights[i] > 0.0001 {
+            let target = Float(i) * spacing + shift
+            guard target >= 0, target <= surface.width else {
+                spill(target, heights[i], heights[i] * spacing)
+                continue
+            }
+            let coordinate = target / spacing
+            let left = max(0, min(heights.count - 2, Int(coordinate)))
+            let t = max(0, min(1, coordinate - Float(left)))
+            scratch[left] += heights[i] * (1 - t)
+            scratch[left + 1] += heights[i] * t
+        }
+        let trailingEdge: Float = shift < 0 ? -spacing : surface.width + spacing
+        for i in heights.indices {
+            let excess = scratch[i] - capacities[i]
+            if excess > 0.0001 {
+                scratch[i] = capacities[i]
+                spill(trailingEdge, excess, excess * spacing)
+            }
         }
         swap(&heights, &scratch)
     }

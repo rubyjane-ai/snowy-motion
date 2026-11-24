@@ -104,6 +104,7 @@ extension SnowSimulation {
             let count = min(requests[index], 5 + (requests[index] - 5) * extraBudget / extraDemand)
             let drift: SnowDrift
             if let previous = old[surface.id] {
+                let previousX = previous.surface.x
                 if previous.heights.count == count && previous.surface.width == surface.width
                     && previous.surface.cornerRadius == surface.cornerRadius && previous.surface.slope == surface.slope {
                     previous.surface = surface
@@ -113,6 +114,7 @@ extension SnowSimulation {
                     drift.copySnow(from: previous)
                     releaseTrimmedDockSnow(from: previous, to: drift)
                 }
+                if shedsCarriedSnow { shedCarriedSnow(from: drift, movedBy: surface.x - previousX) }
             } else {
                 // The initial dusting is incoming snowfall too. Use the incoming scene's
                 // walls, without clearing any existing snow when wind changes later.
@@ -200,6 +202,35 @@ extension SnowSimulation {
                 }
             }
         }
+        interactionDirty = true
+    }
+
+
+    /// Drag speed (points per second) a window's cap holds on to without slipping.
+    static let carriedSnowGrip: Float = 320
+    /// Fraction of the faster-than-grip motion by which the cap lags behind its window.
+    static let carriedSnowSlip: Float = 0.55
+
+    /// A fast pointer drag outruns the snow on top of the window: the cap lags behind,
+    /// and whatever slides past the trailing edge falls off as loose snow.
+    func shedCarriedSnow(from drift: SnowDrift, movedBy dx: Float) {
+        let surface = drift.surface
+        guard dx.isFinite, abs(dx) > 0.5, budget.cells > 0, !surface.isDock, !surface.isElevated,
+              !surface.releasesSnowWhenRemoved, surface.id != DesktopSceneBuilder.groundID,
+              abs(surface.slope) < 0.0001 else { return }
+        let interval = max(Float(1) / 120, min(0.25, sceneInterval.isFinite ? sceneInterval : 0.25))
+        let excess = abs(dx) - SnowSimulation.carriedSnowGrip * interval
+        guard excess > 0 else { return }
+        let shift = (dx > 0 ? -excess : excess) * SnowSimulation.carriedSnowSlip
+        drift.slide(by: shift) { localX, height, mass in
+            let x = max(1, min(self.size.x - 1, surface.x + localX))
+            let base = surface.baseY(at: max(0, min(surface.width, localX)))
+            let y = max(1, min(self.size.y - 1, base - height * 0.5))
+            // Inserted after boundary pushes (see updateScene), so the window cannot sweep it back.
+            self.retainRelease(SnowRelease(position: SIMD2(x, y), height: max(0.1, height), mass: mass),
+                               in: &self.carriedContacts)
+        }
+        meshDirty = true
         interactionDirty = true
     }
 

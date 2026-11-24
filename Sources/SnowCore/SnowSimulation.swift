@@ -17,6 +17,8 @@ public final class SnowSimulation {
         didSet { if wind != oldValue { cornerWindDirty = true } }
     }
     public var tool: SnowTool = .glove
+    /// Laptop tilt and shaking, set every frame by the app (still when no helper is installed).
+    public var motion = DeviceMotion.still
 
     // Shared only by SnowCore implementation extensions; none of this state is public.
     var random: RandomSource
@@ -29,7 +31,12 @@ public final class SnowSimulation {
     var interactionDirty = false
     var geometryAge: Float = 0
     private var settleAge: Float = 0
-    private var elapsed: Float = 0
+    var elapsed: Float = 0
+    /// Simulation time between the last two scene snapshots (used for drag speed).
+    var sceneInterval: Float = 1
+    var lastSceneElapsed: Float?
+    /// True while a pointer drag is applied: fast drags let the carried cap slip and spill.
+    var shedsCarriedSnow = false
     var lastSurfaces: [Surface] = []
     var pendingAppearances: [SolidBody] = []
     var batchingScene = false
@@ -102,13 +109,17 @@ public final class SnowSimulation {
         batchingScene = true
         pendingAppearances.removeAll(keepingCapacity: true)
         let motions = persistentBodyMotions(to: bodies)
+        sceneInterval = lastSceneElapsed.map { elapsed - $0 } ?? 1
+        lastSceneElapsed = elapsed
         // Hand-offs, scraping and ploughing model a window dragged by the pointer. System-driven
         // motion only carries each cap with its own window; covered parts stay hidden.
         if userMotion {
             captureSupportTransfers(to: surfaces, motions: motions)
             captureCarriedSnowCollisions(to: surfaces, motions: motions)
         }
+        shedsCarriedSnow = userMotion
         updateSurfaces(surfaces, windBodies: bodies)
+        shedsCarriedSnow = false
         ploughsSupportedSnow = userMotion
         updateBodies(bodies)
         ploughsSupportedSnow = true
@@ -149,8 +160,16 @@ public final class SnowSimulation {
         } else { previousCursor = nil }
 
         for drift in drifts { drift.accumulate(dt: dt, intensity: snowfall.density) }
+        // Settle every frame (scaled by dt) instead of in 0.1 s jumps, and redraw right away
+        // while a pile is visibly flowing, so settled snow moves smoothly.
+        // Tilting the laptop leans every pile toward the lower side; shaking levels piles faster.
+        let settleTilt = reducedMotion ? 0 : effectiveTilt * 0.3
+        let settleDT = dt * (1 + min(6, effectiveShake * 12))
+        var flowing = false
+        for drift in drifts where drift.settle(dt: settleDT, tilt: settleTilt) > 0.003 { flowing = true }
+        if applyDeviceMotion(dt: dt) { flowing = true }
+        if flowing { meshDirty = true; interactionDirty = true }
         if settleAge >= 0.1 {
-            for drift in drifts { drift.settle() }
             settleAge = 0
             meshDirty = true
         }
@@ -160,11 +179,12 @@ public final class SnowSimulation {
         while flakes.count < desired { flakes.append(newFlake(scattered: true)) }
 
         let wind = sin(elapsed * 0.23) * 7 + sin(elapsed * 0.071) * 5
+        let push = motionPush()
         for i in flakes.indices {
             var particle = flakes[i]
             particle.phase += dt * 0.8
             if particle.phase > .pi * 2 { particle.phase -= .pi * 2 }
-            let gust = SIMD2(wind + sin(particle.phase) * 9 + self.wind.velocity.x,
+            let gust = SIMD2(wind + sin(particle.phase) * 9 + self.wind.velocity.x + push,
                              self.wind.velocity.y * 0.35)
             particle.velocity += gust
             let deposited = advanceParticle(&particle, dt: dt, recycleOnContact: true)
@@ -177,7 +197,7 @@ public final class SnowSimulation {
             flakes[i] = particle
         }
         let looseRevision = looseSnow.revision
-        looseSnow.step(dt: dt, wind: self.wind.velocity) { [unowned self] from, to, mass in
+        looseSnow.step(dt: dt, wind: self.wind.velocity + SIMD2(push, 0)) { [unowned self] from, to, mass in
             self.landGranularSnow(from: from, to: to, mass: mass)
         }
         if tool == .shovel, let cursor {

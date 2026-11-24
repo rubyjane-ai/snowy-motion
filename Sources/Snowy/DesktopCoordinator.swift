@@ -42,6 +42,7 @@ final class DesktopCoordinator {
         }
     }
     private let context: MetalContext
+    private let motion: MotionReceiver
     private let tracker = WindowTracker()
     private var displays: [Display] = []
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
@@ -91,6 +92,7 @@ final class DesktopCoordinator {
 
     init() throws {
         context = try MetalContext()
+        motion = MotionReceiver()
         paused = UserDefaults.standard.bool(forKey: "paused")
         snowfall = Snowfall(rawValue: UserDefaults.standard.string(forKey: "snowfall") ?? "") ?? .steady
         wind = WindSettings(vector: SIMD2(UserDefaults.standard.float(forKey: "windX"),
@@ -292,6 +294,7 @@ final class DesktopCoordinator {
                 }
                 renderer.beforeFrame = { [weak self, weak display] now, cursor in
                     guard let self else { return }
+                    display?.renderer.simulation.motion = self.motion.poll()
                     let down = NSEvent.pressedMouseButtons != 0
                     if down || self.draggingWindow { self.refreshMetadata(dragging: down) }
                     self.draggingWindow = down
