@@ -1,3 +1,50 @@
+# Snowy Motion ❄️📳
+
+**Tilt your MacBook and the snow slides. Shake it and snow falls off your windows.**
+
+Snowy Motion is an unofficial fork of [Snowy](https://github.com/soloiaros/snowy-mac) by Yaroslav Solovev, based on Snowy 0.11.4. It keeps everything Snowy does and adds:
+
+- **Tilt.** The MacBook's built-in motion sensor turns your desk into a slope: falling snow drifts toward the lower side and the snow on windows, the Dock and the bottom of the screen piles up there. Past about 12°, snow slides off the low edge of your windows. Tilts under about 3° are ignored.
+- **Shake.** A shake knocks snow off window edges and flattens the piles. Typing and small bumps are ignored.
+- **Closed windows drop their snow.** Close or minimize a window and its cap falls instead of vanishing.
+- **Fast drags shed snow.** Fling a window and the snow on top lags behind and slides off the trailing edge; slow drags still carry it.
+- **Smoother settling.** Piles settle every frame instead of in 0.1-second steps.
+
+> Not affiliated with or endorsed by the Snowy project. Please report problems with these features here, not upstream.
+
+## Install
+
+Requires an Apple Silicon Mac with macOS 14 or later and Apple's Command Line Tools (the script offers to install them). Shake and tilt need a MacBook with the motion sensor (M2 or newer); everything else works on any Apple Silicon Mac.
+
+```sh
+git clone https://github.com/rubyjane-ai/snowy-motion.git
+cd snowy-motion
+zsh install-motion.sh   # app + shake & tilt (asks for your password once, then a 10-second calibration)
+# or: zsh install.sh    # app only, no shake & tilt
+```
+
+The app installs as **Snowy Motion** next to the official Snowy and never updates over it. Keep only one of the two running.
+
+### How shake & tilt works
+
+Apple doesn't expose the MacBook's motion sensor through any public API. It is reachable only as a raw HID device (`AppleSPUHIDDevice`) with administrator rights, so `install-motion.sh` installs a small helper, `snowy-motion`, as a LaunchDaemon. The helper reads the accelerometer, low-pass filters it into a tilt angle and a shake strength, and sends 60 small UDP packets a second to `127.0.0.1:47391`, where Snowy Motion picks them up. Nothing leaves your Mac. Without the helper the app behaves like Snowy.
+
+- Check live readings: `sudo "/Library/Application Support/SnowyMotion/snowy-motion" --check`
+- Recalibrate: `sudo "/Library/Application Support/SnowyMotion/snowy-motion" --calibrate`
+- Remove the helper: `zsh uninstall-motion.sh`
+
+The sensor is undocumented, so a macOS update could change or block it.
+
+## Credits
+
+- [Snowy](https://github.com/soloiaros/snowy-mac) by Yaroslav Solovev, MIT License: the app this fork is built on.
+- [apple-silicon-accelerometer](https://github.com/olvvier/apple-silicon-accelerometer) by olvvier, MIT License: how to find, wake and decode the motion sensor.
+- The fork's changes were written with the help of Claude (Anthropic).
+
+---
+
+*The original Snowy README follows.*
+
 # Snowy ❄️
 
 Snow for your desktop. A native Mac app that lets winter settle on your windows, widgets, and bottom Dock.
