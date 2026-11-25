@@ -16,7 +16,7 @@ Snowy Motion is an unofficial fork of [Snowy](https://github.com/soloiaros/snowy
 
 ## Install
 
-Requires an Apple Silicon Mac with macOS 14 or later and Apple's Command Line Tools (the script offers to install them). Shake and tilt need a MacBook with the motion sensor (M2 or newer); everything else works on any Apple Silicon Mac.
+Requires an Apple Silicon Mac with macOS 14 or later and Apple's Command Line Tools (the script offers to install them). Shake and tilt need a MacBook with the hidden motion sensor (see [Supported devices](#supported-devices)); everything else works on any Apple Silicon Mac.
 
 ```sh
 git clone https://github.com/rubyjane-ai/snowy-motion.git
@@ -26,6 +26,28 @@ zsh install-motion.sh   # app + shake & tilt (asks for your password once, then 
 ```
 
 The app installs as **Snowy Motion** next to the official Snowy and never updates over it. Keep only one of the two running.
+
+### Supported devices
+
+The snow itself runs on every Apple Silicon Mac with macOS 14 or later. Shake & tilt also need the MacBook's hidden motion sensor:
+
+| Mac | Shake & tilt |
+| --- | --- |
+| MacBook Air with M2, M3, M4 or newer | ✅ Yes (confirmed on MacBook Air M3) |
+| MacBook Pro with M2 or newer, including Pro and Max chips | ✅ Yes (confirmed on MacBook Pro M3 Pro by apple-silicon-accelerometer) |
+| 14″ and 16″ MacBook Pro with M1 Pro or M1 Max | ✅ Expected (sensor present, not yet tested with Snowy Motion) |
+| MacBook Air M1, 13″ MacBook Pro M1 | ❌ No motion sensor |
+| MacBook Neo | ❌ Probably not: Apple lists it among the Macs without motion-based features |
+| iMac, Mac mini, Mac Studio, Mac Pro | ❌ No (Mac Studio M4 Max confirmed without the sensor); the snow works, without shake & tilt |
+| Intel Macs | ❌ Not supported (the app needs Apple Silicon) |
+
+Not sure? Run this in Terminal. If it prints `"PrimaryUsage" = 3`, your Mac has the sensor:
+
+```sh
+ioreg -r -c AppleSPUHIDDevice | grep '"PrimaryUsage" = 3'
+```
+
+Tried it on a Mac that isn't confirmed yet? Please open an issue with your model so this table can be updated.
 
 ### How shake & tilt works
 
