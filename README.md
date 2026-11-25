@@ -1,13 +1,13 @@
 # Snowy Motion ❄️📳
 
-**Tilt your MacBook and the snow slides. Shake it and snow falls off your windows.**
+**Tilt your MacBook and the snow slides. Shake it and snow falls off your windows and bounces on the floor.**
 
 ![Snowy Motion: tilting and shaking a MacBook moves the snow on the desktop](docs/snowy-motion-demo.gif)
 
 Snowy Motion is an unofficial fork of [Snowy](https://github.com/soloiaros/snowy-mac) by Yaroslav Solovev, based on Snowy 0.11.4. It keeps everything Snowy does and adds:
 
 - **Tilt.** The MacBook's built-in motion sensor turns your desk into a slope: falling snow drifts toward the lower side and the snow on windows, the Dock and the bottom of the screen piles up there. Past about 12°, snow slides off the low edge of your windows. Tilts under about 3° are ignored.
-- **Shake.** A shake knocks snow off window edges and flattens the piles. Typing and small bumps are ignored.
+- **Shake.** A shake knocks snow off window edges, and snow lying on the bottom of the screen and the Dock bounces up and lands again. Typing and small bumps are ignored.
 - **Closed windows drop their snow.** Close or minimize a window and its cap falls instead of vanishing.
 - **Fast drags shed snow.** Fling a window and the snow on top lags behind and slides off the trailing edge; slow drags still carry it.
 - **Smoother settling.** Piles settle every frame instead of in 0.1-second steps.
