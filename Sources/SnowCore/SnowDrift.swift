@@ -142,6 +142,31 @@ public final class SnowDrift {
         return moved
     }
 
+    /// Shaking throws clumps of a resting pile into the air. `pick` chooses the samples that
+    /// pop this frame; each takes `share` of its height (half that from its two neighbours,
+    /// so the dent is soft) and hands it to `emit` as (local x, height, area).
+    @discardableResult
+    func kick(share: Float, pick: (Int) -> Bool, emit: (Float, Float, Float) -> Void) -> Bool {
+        let share = max(0, min(0.9, share))
+        guard share > 0 else { return false }
+        var kicked = false
+        for i in heights.indices where heights[i] > 0.4 && pick(i) {
+            guard surface.isExposed(at: Float(i) * spacing) else { continue }
+            var taken: Float = 0
+            for offset in -1...1 {
+                let j = i + offset
+                guard heights.indices.contains(j), surface.isExposed(at: Float(j) * spacing) else { continue }
+                let amount = heights[j] * (offset == 0 ? share : share * 0.5)
+                heights[j] -= amount
+                taken += amount
+            }
+            guard taken > 0.0001 else { continue }
+            emit(Float(i) * spacing, taken, taken * spacing)
+            kicked = true
+        }
+        return kicked
+    }
+
     /// Shaking knocks a share of the cap off its nearer end (`side` −1…1 biases which end).
     /// Reports at most one spill per end: (local x, height, area). Returns true when snow moved.
     @discardableResult
